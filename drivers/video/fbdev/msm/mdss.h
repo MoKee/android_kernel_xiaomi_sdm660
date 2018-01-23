@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2017 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -45,6 +46,7 @@ enum mdss_mdp_clk_type {
 	MDSS_CLK_MDP_LUT,
 	MDSS_CLK_MDP_VSYNC,
 	MDSS_CLK_MNOC_AHB,
+	MDSS_CLK_THROTTLE_AXI,
 	MDSS_MAX_CLK
 };
 
