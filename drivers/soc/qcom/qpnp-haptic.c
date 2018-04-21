@@ -340,6 +340,8 @@ struct qpnp_hap {
 	struct mutex			lock;
 	struct mutex			wf_lock;
 	spinlock_t			bus_lock;
+	spinlock_t			td_lock;
+	struct work_struct		td_work;
 	struct completion		completion;
 	enum qpnp_hap_mode		play_mode;
 	enum qpnp_hap_high_z		lra_high_z;
@@ -403,6 +405,7 @@ struct qpnp_hap {
 	bool				perform_lra_auto_resonance_search;
 	bool				force_back_emf_delay;
 	bool				square_drive;
+	int				td_time_ms;
 };
 
 static struct qpnp_hap *ghap;
@@ -2382,11 +2385,15 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 	return rc;
 }
 
-/* enable interface from timed output class */
-static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
+static void qpnp_timed_enable_worker(struct work_struct *work)
 {
-	struct qpnp_hap *hap = container_of(dev, struct qpnp_hap,
-					 timed_dev);
+	struct qpnp_hap *hap = container_of(work, struct qpnp_hap,
+					 td_work);
+	int value;
+
+	spin_lock(&hap->td_lock);
+	value = hap->td_time_ms;
+	spin_unlock(&hap->td_lock);
 
 	mutex_lock(&hap->lock);
 
@@ -2419,6 +2426,19 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 	}
 	mutex_unlock(&hap->lock);
 	schedule_work(&hap->work);
+}
+
+/* enable interface from timed output class */
+static void qpnp_hap_td_enable(struct timed_output_dev *dev, int time_ms)
+{
+	struct qpnp_hap *hap = container_of(dev, struct qpnp_hap,
+					 timed_dev);
+
+	spin_lock(&hap->td_lock);
+	hap->td_time_ms = time_ms;
+	spin_unlock(&hap->td_lock);
+
+	schedule_work(&hap->td_work);
 }
 
 /* play pwm bytes */
@@ -3291,9 +3311,11 @@ static int qpnp_haptic_probe(struct platform_device *pdev)
 
 	mutex_init(&hap->lock);
 	mutex_init(&hap->wf_lock);
+	spin_lock_init(&hap->td_lock);
 	INIT_WORK(&hap->work, qpnp_hap_worker);
 	INIT_DELAYED_WORK(&hap->sc_work, qpnp_handle_sc_irq);
 	init_completion(&hap->completion);
+	INIT_WORK(&hap->td_work, qpnp_timed_enable_worker);
 
 	hrtimer_init(&hap->hap_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hap->hap_timer.function = qpnp_hap_timer;
