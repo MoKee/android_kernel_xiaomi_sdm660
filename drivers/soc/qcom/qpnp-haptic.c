@@ -353,6 +353,9 @@ struct qpnp_hap {
 	u32				overdrive;
 	u32				drive_direction;
 	u32				vmax_mv;
+	u32				vtg_min;
+	u32				vtg_max;
+	u32				vtg_default;
 	u32				vmax_overbrake_mv;
 	u32				vmax_overdrive_mv;
 	u32				ilim_ma;
@@ -861,12 +864,12 @@ static int qpnp_hap_vmax_overdrive_config(struct qpnp_hap *hap)
 {
 	u8 val = 0;
 	int rc;
-	if (hap->vmax_overdrive_mv < QPNP_HAP_VMAX_MIN_MV)
-		hap->vmax_overdrive_mv = QPNP_HAP_VMAX_MIN_MV;
-	else if (hap->vmax_overdrive_mv > QPNP_HAP_VMAX_MAX_MV)
-		hap->vmax_overdrive_mv = QPNP_HAP_VMAX_MAX_MV;
+	if (hap->vmax_overdrive_mv < hap->vtg_min)
+		hap->vmax_overdrive_mv = hap->vtg_min;
+	else if (hap->vmax_overdrive_mv > hap->vtg_max)
+		hap->vmax_overdrive_mv = hap->vtg_max;
 
-	val = (hap->vmax_overdrive_mv / QPNP_HAP_VMAX_MIN_MV) << QPNP_HAP_VMAX_SHIFT;
+	val = (hap->vmax_overdrive_mv / hap->vtg_min) << QPNP_HAP_VMAX_SHIFT;
 	rc = qpnp_hap_masked_write_reg(hap, QPNP_HAP_VMAX_REG(hap->base),
 			QPNP_HAP_VMAX_MASK, val);
 	return rc;
@@ -878,12 +881,12 @@ static int qpnp_hap_vmax_config(struct qpnp_hap *hap)
 	u8 val = 0;
 	int rc;
 
-	if (hap->vmax_mv < QPNP_HAP_VMAX_MIN_MV)
-		hap->vmax_mv = QPNP_HAP_VMAX_MIN_MV;
-	else if (hap->vmax_mv > QPNP_HAP_VMAX_MAX_MV)
-		hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
+	if (hap->vmax_mv < hap->vtg_min)
+		hap->vmax_mv = hap->vtg_min;
+	else if (hap->vmax_mv > hap->vtg_max)
+		hap->vmax_mv = hap->vtg_max;
 
-	val = (hap->vmax_mv / QPNP_HAP_VMAX_MIN_MV) << QPNP_HAP_VMAX_SHIFT;
+	val = (hap->vmax_mv / hap->vtg_min) << QPNP_HAP_VMAX_SHIFT;
 	rc = qpnp_hap_masked_write_reg(hap, QPNP_HAP_VMAX_REG(hap->base),
 			QPNP_HAP_VMAX_MASK, val);
 	return rc;
@@ -933,12 +936,12 @@ static int qpnp_hap_vmax_overbrake_config(struct qpnp_hap *hap)
 	u8 val = 0;
 	int rc;
 
-	if (hap->vmax_overbrake_mv < QPNP_HAP_VMAX_MIN_MV)
-		hap->vmax_overbrake_mv = QPNP_HAP_VMAX_MIN_MV;
-	else if (hap->vmax_overbrake_mv > QPNP_HAP_VMAX_MAX_MV)
-		hap->vmax_overbrake_mv = QPNP_HAP_VMAX_MAX_MV;
+	if (hap->vmax_overbrake_mv < hap->vtg_min)
+		hap->vmax_overbrake_mv = hap->vtg_min;
+	else if (hap->vmax_overbrake_mv > hap->vtg_max)
+		hap->vmax_overbrake_mv = hap->vtg_max;
 
-	val = (hap->vmax_overbrake_mv / QPNP_HAP_VMAX_MIN_MV) << QPNP_HAP_VMAX_SHIFT;
+	val = (hap->vmax_overbrake_mv / hap->vtg_min) << QPNP_HAP_VMAX_SHIFT;
 	rc = qpnp_hap_masked_write_reg(hap, QPNP_HAP_VMAX_REG(hap->base),
 			QPNP_HAP_VMAX_MASK, val);
 	return rc;
@@ -1906,6 +1909,36 @@ static ssize_t qpnp_hap_brake_pattern_store(struct device *dev,
 	return count;
 }
 
+static ssize_t qpnp_hap_min_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_min);
+}
+
+static ssize_t qpnp_hap_max_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_max);
+}
+
+static ssize_t qpnp_hap_default_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_default);
+}
+
 /* sysfs attributes */
 static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(wf_s0, 0664, qpnp_hap_wf_s0_show, qpnp_hap_wf_s0_store),
@@ -1942,6 +1975,18 @@ static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(vmax_mv, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_vmax_show,
 			qpnp_hap_vmax_store),
+	__ATTR(vtg_level, (S_IRUGO | S_IWUSR | S_IWGRP),
+			qpnp_hap_vmax_show,
+			qpnp_hap_vmax_store),
+	__ATTR(vtg_min, (S_IRUGO | S_IWUSR | S_IWGRP),
+			qpnp_hap_min_show,
+			NULL),
+	__ATTR(vtg_max, (S_IRUGO | S_IWUSR | S_IWGRP),
+			qpnp_hap_max_show,
+			NULL),
+	__ATTR(vtg_default, (S_IRUGO | S_IWUSR | S_IWGRP),
+			qpnp_hap_default_show,
+			NULL),
 	__ATTR(EN_OVD_2X, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_overdrive_show,
 			qpnp_hap_overdrive_store),
@@ -2981,7 +3026,25 @@ static int qpnp_hap_parse_dt(struct qpnp_hap *hap)
 		return rc;
 	}
 
-	hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
+	hap->vtg_min = QPNP_HAP_VMAX_MIN_MV;
+	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vtg-min", &temp);
+	if (!rc) {
+		hap->vtg_min = temp;
+	} else if (rc != -EINVAL) {
+		pr_err("Unable to read vtg_min\n");
+		return rc;
+	}
+
+	hap->vtg_max = QPNP_HAP_VMAX_MAX_MV;
+	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vtg-max", &temp);
+	if (!rc) {
+		hap->vtg_max = temp;
+	} else if (rc != -EINVAL) {
+		pr_err("Unable to read vtg_max\n");
+		return rc;
+	}
+
+	hap->vmax_mv = hap->vtg_max;
 	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vmax-mv", &temp);
 	if (!rc) {
 		hap->vmax_mv = temp;
@@ -2989,6 +3052,14 @@ static int qpnp_hap_parse_dt(struct qpnp_hap *hap)
 		pr_err("Unable to read vmax\n");
 		return rc;
 	}
+
+	if (hap->vmax_mv < hap->vtg_min) {
+		hap->vmax_mv = hap->vtg_min;
+	} else if (hap->vmax_mv > hap->vtg_max) {
+		hap->vmax_mv = hap->vtg_max;
+	}
+
+	hap->vtg_default = hap->vmax_mv;
 
 	hap->overdrive  = of_property_read_bool(pdev->dev.of_node,
 			"qcom,ovd_2x");
